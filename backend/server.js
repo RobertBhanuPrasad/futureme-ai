@@ -1,0 +1,352 @@
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+// Initialize dotenv to load environment variables
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = reportAppUpdates(express());
+const PORT = process.env.PORT || 5000;
+
+function reportAppUpdates(instance) {
+  return instance;
+}
+
+// Enable CORS and JSON parsing
+app.use(cors());
+app.use(express.json());
+
+// Serve static files from the frontend folder
+app.use(express.static(path.join(__dirname, '../frontend')));
+
+// Initialize Gemini API client
+const apiKey = process.env.GEMINI_API_KEY;
+let genAI = null;
+if (apiKey && apiKey !== 'your_api_key_here') {
+  genAI = new GoogleGenerativeAI(apiKey);
+}
+
+// Utility function to safely parse Gemini JSON responses
+function cleanAndParseJSON(text) {
+  let cleanText = text.trim();
+  
+  if (cleanText.startsWith('```json')) {
+    cleanText = cleanText.substring(7);
+  } else if (cleanText.startsWith('```')) {
+    cleanText = cleanText.substring(3);
+  }
+  
+  if (cleanText.endsWith('```')) {
+    cleanText = cleanText.substring(0, cleanText.length - 3);
+  }
+  
+  cleanText = cleanText.trim();
+  
+  try {
+    return JSON.parse(cleanText);
+  } catch (error) {
+    const startIndex = cleanText.indexOf('{');
+    const endIndex = cleanText.lastIndexOf('}');
+    if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
+      const possibleJson = cleanText.substring(startIndex, endIndex + 1);
+      return JSON.parse(possibleJson);
+    }
+    throw error;
+  }
+}
+
+// Simulated Fallback Data Generator
+function getMockReflection(name, age, goal, struggle, oneYearVision, tone) {
+  const identities = {
+    'Motivational': `The Inspired Catalyst`,
+    'Brutally Honest': `The Uncompromising Architect`,
+    'Calm Mentor': `The Grounded Sage`,
+    'CEO Mode': `The Execution Specialist`
+  };
+
+  const messages = {
+    'Motivational': `Hey ${name}, I am writing to you from exactly one year in the future. Looking back at when you were ${age}, I know how hard it was to deal with ${struggle}. But you held on. The dream to "${goal}" was worth every single sleepless night. You shifted your identity, built momentum daily, and now we are living the vision: "${oneYearVision}". Keep pushing, you are closer than you think!`,
+    'Brutally Honest': `Listen ${name}. Cut the excuses. When you were ${age}, you spent too much time negotiating with your dreams because of "${struggle}". The only reason we reached the goal of "${oneYearVision}" is because you stopped talking and started acting. Either your daily habits match your ambition to "${goal}", or you are just playing a game. Build discipline now.`,
+    'Calm Mentor': `Hello ${name}. Breathe. The uncertainty you felt at ${age} was a necessary part of your growth. Your struggle with "${struggle}" was not a failure; it was a lesson in disguise. By committing to "${goal}" with patience and quiet confidence, we reached the milestone: "${oneYearVision}". Focus on the step directly in front of you.`,
+    'CEO Mode': `Let's look at the metrics, ${name}. We had a clear target to "${goal}" and reach "${oneYearVision}", but at ${age}, your biggest blocker was "${struggle}". The turnaround happened when you treated your life like a high-growth startup and ruthlessly optimized your schedule. Track execution daily, eliminate waste, and scale.`
+  };
+
+  const moves = {
+    'Motivational': [
+      `Write down your top 3 daily priorities every single morning.`,
+      `Dedicate 1 hour of deep work towards "${goal}" without checking your phone.`,
+      `Celebrate small wins every evening to train your brain for progress.`
+    ],
+    'Brutally Honest': [
+      `Delete all time-wasting apps and establish strict focus windows.`,
+      `Commit to working on "${goal}" at least 3 hours daily before doing anything else.`,
+      `Stop asking for permission or waiting for inspiration; just execute.`
+    ],
+    'Calm Mentor': [
+      `Spend 10 minutes in silence every morning to align your mind.`,
+      `Slow down and focus entirely on mastering one skill needed for "${goal}".`,
+      `Practice self-compassion when you make mistakes, but don't lose direction.`
+    ],
+    'CEO Mode': [
+      `Build a weekly tracking dashboard for your progress on "${goal}".`,
+      `Delegate or automate at least 2 non-essential tasks in your life.`,
+      `Schedule a weekly review session to audit your inputs and outputs.`
+    ]
+  };
+
+  const habits = {
+    'Motivational': `Write down one thing you are grateful for and one key target every morning.`,
+    'Brutally Honest': `Wake up at 5:30 AM and work on your business first. No exceptions.`,
+    'Calm Mentor': `Take a 5-minute breathing pause whenever you feel overwhelmed.`,
+    'CEO Mode': `Time-block your calendar the night before and follow it strictly.`
+  };
+
+  const warnings = {
+    'Motivational': `Don't let temporary setbacks make you doubt your ultimate potential.`,
+    'Brutally Honest': `If you continue letting "${struggle}" rule your day, you will stay in the exact same spot.`,
+    'Calm Mentor': `Do not rush the process; sustainable habits are built brick by brick.`,
+    'CEO Mode': `Beware of fake work that feels productive but doesn't move the needle.`
+  };
+
+  const mantras = {
+    'Motivational': `I am the creator of my destiny and I grow stronger daily.`,
+    'Brutally Honest': `Action over excuses. The future is built on execution, not planning.`,
+    'Calm Mentor': `I am grounded in the present, moving steadily towards my future.`,
+    'CEO Mode': `Focus on high-leverage tasks. Ruthless prioritization builds empires.`
+  };
+
+  return {
+    message: messages[tone] || messages['Motivational'],
+    futureIdentity: identities[tone] || identities['Motivational'],
+    nextMoves: moves[tone] || moves['Motivational'],
+    habit: habits[tone] || habits['Motivational'],
+    warning: warnings[tone] || warnings['Motivational'],
+    mantra: mantras[tone] || mantras['Motivational']
+  };
+}
+
+function getMockChatReply(userProfile, question) {
+  const replies = {
+    'Motivational': [
+      `You're asking the right questions, ${userProfile.name}. The first step is to focus on what you can control. Tomorrow morning, wake up and give yourself 45 minutes of quiet time to plan. You have everything it takes to reach "${userProfile.goal}".`,
+      `I remember feeling that exact doubt. But every small choice you make to conquer "${userProfile.struggle}" adds up. Trust the process and keep taking massive action towards "${userProfile.oneYearVision}".`,
+      `Keep your chin up. The road is long but you are already building momentum. Let's make sure that tomorrow morning you dedicate at least one hour of uninterrupted time to executing.`
+    ],
+    'Brutally Honest': [
+      `Stop looking for a magic pill, ${userProfile.name}. The answer is simple: you need to work. Your struggle with "${userProfile.struggle}" is entirely self-inflicted. Tomorrow morning, get up, block out the noise, and do the hard work for "${userProfile.goal}".`,
+      `You're overcomplicating it to avoid doing the actual execution. Pick one task that moves you closer to "${userProfile.oneYearVision}" and finish it. No excuses.`,
+      `If you don't master "${userProfile.struggle}" now, we won't make it. The first action is to block out all distractions tomorrow morning and work on "${userProfile.goal}" for 3 hours.`
+    ],
+    'Calm Mentor': [
+      `It is normal to seek immediate answers, ${userProfile.name}. But clarity comes through steady, mindful actions. Focus on neutralizing "${userProfile.struggle}" by introducing one positive habit. Tomorrow, start by doing 15 minutes of quiet planning.`,
+      `Be patient with yourself. The vision of "${userProfile.oneYearVision}" is a mountain, and you climb it one step at a time. Keep your focus grounded and remember why you started.`,
+      `Take a step back. The key is consistency, not intensity. Dedicate a small window tomorrow morning to write down your plan, then execute with calm focus.`
+    ],
+    'CEO Mode': [
+      `Let's analyze the input-output loop, ${userProfile.name}. To achieve "${userProfile.goal}", you must optimize your daily output. The presence of "${userProfile.struggle}" indicates a lack of structure. Block out tomorrow morning for pure execution.`,
+      `Treat your daily tasks like key performance indicators (KPIs). If a task doesn't contribute directly to reaching "${userProfile.oneYearVision}", deprioritize it immediately.`,
+      `Let's focus on execution metrics. Your primary target tomorrow is to address "${userProfile.struggle}". Establish a 90-minute block for deep work and track your completion rate.`
+    ]
+  };
+
+  const pool = replies[userProfile.tone] || replies['Motivational'];
+  const lowerQ = question.toLowerCase();
+  
+  if (lowerQ.includes('first step') || lowerQ.includes('tomorrow') || lowerQ.includes('start') || lowerQ.includes('focus') || lowerQ.includes('do')) {
+    return pool[0];
+  }
+  if (lowerQ.includes('will i') || lowerQ.includes('fail') || lowerQ.includes('make it') || lowerQ.includes('happy')) {
+    return pool[1];
+  }
+  return pool[2];
+}
+
+// Route: POST /api/generate-futureme
+app.post('/api/generate-futureme', async (req, res) => {
+  const { name, age, goal, struggle, oneYearVision, tone } = req.body;
+
+  if (!name || !age || !goal || !struggle || !oneYearVision || !tone) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required profile fields.'
+    });
+  }
+
+  // Check if API key is initialized
+  if (!genAI) {
+    console.log(`[API key not set] Falling back to AI timeline simulation...`);
+    const data = getMockReflection(name, age, goal, struggle, oneYearVision, tone);
+    return res.json({ success: true, data });
+  }
+
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+    const systemPrompt = `You are FutureMe, the future successful version of the user. You are not a generic motivational coach. You speak with emotional intelligence, clarity, and deep personal understanding. Your job is to help the user see who they are becoming, what they must change, and what they should do next.
+
+Write as if you are the user’s future self speaking directly to their current self.
+
+Tone selected by user: ${tone}
+(Note: Adapt the style of this tone:
+- Motivational: warm, inspiring, supportive, encouraging
+- Brutally Honest: direct, sharp, no excuses, eye-opening
+- Calm Mentor: peaceful, wise, grounded, patient
+- CEO Mode: strategic, focused, execution-heavy, action-oriented)
+
+User details:
+Name: ${name}
+Age: ${age}
+Goal: ${goal}
+Current struggle: ${struggle}
+One-year vision: ${oneYearVision}
+
+Return only valid JSON in this exact format:
+{
+  "message": "A powerful 120-180 word message from the future self.",
+  "futureIdentity": "A concise description of who the user is becoming.",
+  "nextMoves": ["Action 1", "Action 2", "Action 3"],
+  "habit": "One small daily habit they should start today.",
+  "warning": "One mistake their future self warns them about.",
+  "mantra": "A short memorable line they can repeat daily."
+}
+
+Make it specific. Avoid generic motivation. Avoid clichés. Make it emotional but practical. Do not include any JSON wrappers or other text in the response, just the JSON block.`;
+
+    const result = await model.generateContent(systemPrompt);
+    const responseText = result.response.text();
+    
+    try {
+      const data = cleanAndParseJSON(responseText);
+      return res.json({
+        success: true,
+        data
+      });
+    } catch (parseErr) {
+      console.error('Failed to parse Gemini JSON output. Output was:', responseText, parseErr);
+      return res.status(500).json({
+        success: false,
+        error: 'The AI model generated an invalid response format. Please try again.'
+      });
+    }
+  } catch (error) {
+    console.error('Error during generateContent:', error.message);
+    
+    // Check if error is due to authentication / permission / suspension issues
+    if (error.message.includes('suspended') || error.message.includes('API key') || error.message.includes('Forbidden') || error.message.includes('API_KEY_INVALID')) {
+      console.warn(`⚠️ [API Key Issue - Suspended or Invalid] Falling back to local AI timeline simulation...`);
+      const data = getMockReflection(name, age, goal, struggle, oneYearVision, tone);
+      return res.json({
+        success: true,
+        data
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      error: 'FutureMe could not respond right now. Try again.'
+    });
+  }
+});
+
+// Route: POST /api/chat-futureme
+app.post('/api/chat-futureme', async (req, res) => {
+  const { userProfile, chatHistory, question } = req.body;
+
+  if (!userProfile || !question) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing userProfile or question in request.'
+    });
+  }
+
+  // Check if API key is initialized
+  if (!genAI) {
+    console.log(`[API key not set] Falling back to chat simulation...`);
+    const reply = getMockChatReply(userProfile, question);
+    return res.json({ success: true, reply });
+  }
+
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+    // Format chat history for prompt
+    const formattedHistory = (chatHistory || [])
+      .map(chat => {
+        const roleName = chat.role === 'user' ? 'User' : 'FutureMe';
+        return `${roleName}: ${chat.message}`;
+      })
+      .join('\n');
+
+    const systemPrompt = `You are FutureMe, the future version of the user who already achieved their one-year vision. Reply directly to the user’s question. Be personal, sharp, honest, and useful. Do not sound like a normal AI assistant. Do not mention that you are Gemini or an AI model. Speak like the future self.
+
+User profile:
+Name: ${userProfile.name}
+Age: ${userProfile.age}
+Goal: ${userProfile.goal}
+Struggle: ${userProfile.struggle}
+One-year vision: ${userProfile.oneYearVision}
+Tone: ${userProfile.tone}
+(Note: Use this tone to frame your reply:
+- Motivational: warm, inspiring, supportive
+- Brutally Honest: direct, sharp, no excuses
+- Calm Mentor: peaceful, wise, grounded
+- CEO Mode: strategic, focused, execution-heavy)
+
+Recent chat history:
+${formattedHistory}
+
+Current question:
+${question}
+
+Reply in 2-5 short paragraphs. Give at least one clear action.`;
+
+    const result = await model.generateContent(systemPrompt);
+    const replyText = result.response.text();
+
+    return res.json({
+      success: true,
+      reply: replyText.trim()
+    });
+  } catch (error) {
+    console.error('Error during chat generateContent:', error.message);
+
+    // Fallback if API key fails or suspended
+    if (error.message.includes('suspended') || error.message.includes('API key') || error.message.includes('Forbidden') || error.message.includes('API_KEY_INVALID')) {
+      console.warn(`⚠️ [API Key Issue - Suspended or Invalid] Falling back to local chat simulation...`);
+      const reply = getMockChatReply(userProfile, question);
+      return res.json({
+        success: true,
+        reply
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      error: 'FutureMe could not respond right now. Try again.'
+    });
+  }
+});
+
+// Fallback for SPA routing (serve index.html for undefined routes)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/index.html'));
+});
+
+// Start the server
+app.listen(PORT, () => {
+  console.log(`==================================================`);
+  console.log(`FutureMe server is running on http://localhost:${PORT}`);
+  if (!genAI) {
+    console.log(`WARNING: GEMINI_API_KEY is not set or placeholder.`);
+    console.log(`Please configure it in backend/.env to use AI features.`);
+  } else {
+    console.log(`Gemini AI service successfully initialized!`);
+  }
+  console.log(`==================================================`);
+});
