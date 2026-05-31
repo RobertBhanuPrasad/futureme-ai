@@ -121,8 +121,31 @@
         <!-- Controls -->
         <div class="result-actions" style="display: flex; gap: 15px; margin-top: 25px; flex-wrap: wrap;">
           <button class="btn" onclick="copyReflection()">Copy Reflection</button>
+          <button class="btn" style="background: linear-gradient(135deg, #06b6d4, #0891b2);" id="generate-plan-btn" onclick="generateDailyPlan()">Generate Daily Plan</button>
           <button class="btn" style="background: linear-gradient(135deg, #7c3aed, #4f46e5);" onclick="scrollToChat()">Speak with FutureMe</button>
           <button class="btn" style="background: rgba(255,255,255,0.08);" onclick="resetForm()">Start Over</button>
+        </div>
+
+        <!-- Daily Plan Container -->
+        <div id="plan-loading" style="display: none; margin-top: 20px; color: #06b6d4; text-align: center; font-weight: 500; font-size: 0.95rem; animation: pulse 1.5s infinite ease-in-out;">
+          Structuring your daily plan blocks...
+        </div>
+
+        <div id="daily-plan-container" style="display: none; margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.08); animation: slideDown 0.4s ease forwards;">
+          <h3 style="color: #06b6d4; margin-bottom: 8px;">📅 Your Customized Daily Action Plan</h3>
+          <p id="plan-focus" style="font-size: 0.95rem; color: #b7bcc7; margin-bottom: 20px; font-style: italic;"></p>
+          
+          <div id="plan-schedule-grid" style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px;">
+            <!-- Generated time blocks go here -->
+          </div>
+
+          <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); padding: 15px; border-radius: 14px; margin-bottom: 20px;">
+            <p id="plan-quote" style="font-weight: 500; color: #a78bfa; text-align: center; font-style: italic; font-size: 0.95rem;"></p>
+          </div>
+          
+          <div style="display: flex; gap: 10px;">
+            <button class="btn" onclick="copyDailyPlan()" style="padding: 10px 18px; font-size: 0.9rem;">Copy Daily Plan</button>
+          </div>
         </div>
       </div>
     </div>

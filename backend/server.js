@@ -131,6 +131,57 @@ function getMockReflection(name, age, goal, struggle, oneYearVision, tone) {
   };
 }
 
+function getMockDailyPlan(userProfile) {
+  const plans = {
+    'Motivational': {
+      focus: "Establish a high-momentum start and protect your deep work window.",
+      schedule: [
+        { time: "06:00 AM - 07:30 AM", activity: "Rise & Align: Hydrate, plan your day, and do 10 minutes of reflection.", leverage: "High", motivation: "Winning the morning is winning the day." },
+        { time: "08:30 AM - 11:30 AM", activity: `Deep Focus Block: Work uninterrupted on your goal of "${userProfile.goal}".`, leverage: "Critical", motivation: "This is where the actual progress is built." },
+        { time: "01:30 PM - 04:30 PM", activity: "Leverage Work: Handle emails, administrative tasks, and minor project updates.", leverage: "Medium", motivation: "Keep momentum going without burning out." },
+        { time: "08:00 PM - 09:00 PM", activity: `Review & Wind Down: Track completed tasks and review your struggle with "${userProfile.struggle}".`, leverage: "High", motivation: "Refining tomorrow's approach tonight." }
+      ],
+      mantra: "Every small task checked off is a brick in our future empire.",
+      motivationalQuote: "The future belongs to those who execute in the present."
+    },
+    'Brutally Honest': {
+      focus: "Stop planning. Start doing. Eliminate distractions ruthlessly today.",
+      schedule: [
+        { time: "05:30 AM - 07:00 AM", activity: "No-Snooze Block: Get out of bed instantly. Work on your key priority.", leverage: "High", motivation: "Excuses don't pay bills. Do the work." },
+        { time: "08:30 AM - 12:00 PM", activity: `Isolation Focus: Put phone in another room. Work on "${userProfile.goal}".`, leverage: "Critical", motivation: "If you touch social media or games here, you choose to fail." },
+        { time: "02:00 PM - 05:00 PM", activity: "System Maintenance: Perform necessary follow-ups and business admin.", leverage: "Medium", motivation: "Be efficient and brief. Get back to execution." },
+        { time: "08:30 PM - 09:30 PM", activity: `Truth Audit: Review your day. Did you let "${userProfile.struggle}" win? Write down the honest score.`, leverage: "High", motivation: "Lying to yourself is the worst form of sabotage." }
+      ],
+      mantra: "Consistency over comfort. Execution over intentions.",
+      motivationalQuote: "You are either building your dreams or negotiating them away."
+    },
+    'Calm Mentor': {
+      focus: "Align actions with intent and cultivate presence in each block.",
+      schedule: [
+        { time: "06:30 AM - 08:00 AM", activity: "Mindful Morning: Breathe, journal, and read one article about your industry.", leverage: "High", motivation: "A quiet mind makes better strategic decisions." },
+        { time: "09:00 AM - 12:00 PM", activity: `Focused Effort: Work with patience on a key milestone for "${userProfile.goal}".`, leverage: "Critical", motivation: "Do not rush. Quality requires focused attention." },
+        { time: "02:00 PM - 04:30 PM", activity: "Collaborative Actions: Engage with users, research, or refine details calmly.", leverage: "Medium", motivation: "Connection builds sustainability." },
+        { time: "08:00 PM - 09:00 PM", activity: `Gratitude & Planning: Acknowledge today's efforts and release the tension of "${userProfile.struggle}".`, leverage: "High", motivation: "Patience with the journey is power." }
+      ],
+      mantra: "Slow is smooth. Smooth is fast. We are walking the path steadily.",
+      motivationalQuote: "Nature does not hurry, yet everything is accomplished."
+    },
+    'CEO Mode': {
+      focus: "Maximize high-leverage outcomes and track input metrics.",
+      schedule: [
+        { time: "05:45 AM - 07:15 AM", activity: "Strategic Review: Analyze metrics, prioritize high-value tasks, and check timeline goals.", leverage: "High", motivation: "Set the daily vision before the noise starts." },
+        { time: "08:30 AM - 12:00 PM", activity: `Core Deliverable: Focus entirely on the main growth task for "${userProfile.goal}".`, leverage: "Critical", motivation: "Delegate the rest. Focus on high leverage." },
+        { time: "01:30 PM - 04:30 PM", activity: "Operations & Audits: Sync with collaborators, test features, or refine strategies.", leverage: "Medium", motivation: "Keep the machine running smoothly." },
+        { time: "07:30 PM - 08:30 PM", activity: `KPI Review: Did you minimize the impact of "${userProfile.struggle}"? Log your daily productivity index.`, leverage: "High", motivation: "What gets measured gets managed." }
+      ],
+      mantra: "Protect your time. It is your only non-renewable asset.",
+      motivationalQuote: "Efficiency is doing things right; effectiveness is doing the right things."
+    }
+  };
+
+  return plans[userProfile.tone] || plans['Motivational'];
+}
+
 function getMockChatReply(userProfile, question) {
   const replies = {
     'Motivational': [
@@ -329,6 +380,107 @@ Reply in 2-5 short paragraphs. Give at least one clear action.`;
     return res.status(500).json({
       success: false,
       error: 'FutureMe could not respond right now. Try again.'
+    });
+  }
+});
+
+// Route: POST /api/daily-plan
+app.post('/api/daily-plan', async (req, res) => {
+  try {
+    const { userProfile } = req.body;
+
+    if (!userProfile) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing userProfile in request.'
+      });
+    }
+
+    if (!genAI) {
+      console.log(`[API key not set] Falling back to daily plan simulation...`);
+      const plan = getMockDailyPlan(userProfile);
+      return res.json({ success: true, plan });
+    }
+
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+    const systemPrompt = `You are FutureMe, the successful future version of the user. Your job is to create a detailed, realistic, and highly motivating daily schedule plan based on the user's details. The plan must help them achieve their goal while addressing their current struggle.
+
+User details:
+Name: ${userProfile.name}
+Age: ${userProfile.age}
+Goal: ${userProfile.goal}
+Struggle: ${userProfile.struggle}
+One-year vision: ${userProfile.oneYearVision}
+Tone: ${userProfile.tone}
+
+Return only valid JSON in this exact format:
+{
+  "focus": "A short, powerful focus statement for the day.",
+  "schedule": [
+    {
+      "time": "Time Range (e.g. 06:00 AM - 07:30 AM)",
+      "activity": "A concrete, highly actionable activity that aligns with their goal.",
+      "leverage": "High, Critical, or Medium",
+      "motivation": "A short sentence of motivation from their future self for this block."
+    },
+    {
+      "time": "Time Range (e.g. 08:30 AM - 12:00 PM)",
+      "activity": "Another concrete activity.",
+      "leverage": "High, Critical, or Medium",
+      "motivation": "Motivation sentence."
+    },
+    {
+      "time": "Time Range (e.g. 01:30 PM - 04:30 PM)",
+      "activity": "Another concrete activity.",
+      "leverage": "High, Critical, or Medium",
+      "motivation": "Motivation sentence."
+    },
+    {
+      "time": "Time Range (e.g. 08:00 PM - 09:30 PM)",
+      "activity": "Another concrete activity.",
+      "leverage": "High, Critical, or Medium",
+      "motivation": "Motivation sentence."
+    }
+  ],
+  "mantra": "A daily planner mantra.",
+  "motivationalQuote": "A personalized motivational quote."
+}
+
+Do not include any Markdown wrappers or additional text, just return the JSON block.`;
+
+    const result = await model.generateContent(systemPrompt);
+    const responseText = result.response.text();
+
+    try {
+      const plan = cleanAndParseJSON(responseText);
+      return res.json({
+        success: true,
+        plan
+      });
+    } catch (parseErr) {
+      console.error('Failed to parse Gemini JSON output for daily plan. Output was:', responseText, parseErr);
+      return res.status(500).json({
+        success: false,
+        error: 'The AI model generated an invalid response format. Please try again.'
+      });
+    }
+  } catch (error) {
+    console.error('Error during daily plan generateContent:', error.message);
+
+    // Fallback if API key fails or suspended
+    if (error.message.includes('suspended') || error.message.includes('API key') || error.message.includes('Forbidden') || error.message.includes('API_KEY_INVALID')) {
+      console.warn(`⚠️ [API Key Issue - Suspended or Invalid] Falling back to local daily plan simulation...`);
+      const plan = getMockDailyPlan(req.body.userProfile);
+      return res.json({
+        success: true,
+        plan
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      error: 'FutureMe could not generate daily plan. Try again.'
     });
   }
 });

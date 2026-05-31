@@ -11,7 +11,8 @@ const API_BASE = (window.location.origin.startsWith('file://') || window.locatio
 const state = {
   userProfile: null,
   futureMeData: null,
-  chatHistory: [] // stores { role: 'user' | 'futureme', message: '...' }
+  chatHistory: [], // stores { role: 'user' | 'futureme', message: '...' }
+  dailyPlan: null
 };
 
 // DOM Elements
@@ -43,7 +44,14 @@ const elements = {
   chatSendBtn: document.getElementById('chat-send-btn'),
   chatForm: document.getElementById('chat-form'),
 
-  toast: document.getElementById('toast')
+  toast: document.getElementById('toast'),
+
+  planLoading: document.getElementById('plan-loading'),
+  planContainer: document.getElementById('daily-plan-container'),
+  planFocus: document.getElementById('plan-focus'),
+  planScheduleGrid: document.getElementById('plan-schedule-grid'),
+  planQuote: document.getElementById('plan-quote'),
+  generatePlanBtn: document.getElementById('generate-plan-btn')
 };
 
 // Loading Texts Loop
@@ -199,6 +207,9 @@ function resetForm() {
   });
   elements.resultBlock.style.display = 'none';
   elements.errorBlock.style.display = 'none';
+  elements.planContainer.style.display = 'none';
+  elements.planLoading.style.display = 'none';
+  state.dailyPlan = null;
   document.getElementById('create').scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -409,7 +420,7 @@ function shareMoment() {
     // If no report generated yet, copy a general description
     navigator.clipboard.writeText("Meet the version of you who already made it. Check out FutureMe!")
       .then(() => {
-        triggerToast("FutureMe link copied to share!");
+         triggerToast("FutureMe link copied to share!");
       });
     return;
   }
@@ -417,5 +428,146 @@ function shareMoment() {
   navigator.clipboard.writeText(text)
     .then(() => {
       triggerToast("Your FutureMe moment is copied and ready to share!");
+    });
+}
+
+// ==========================================================================
+// Daily Action Planner Controller
+// ==========================================================================
+async function generateDailyPlan() {
+  if (!state.userProfile) {
+    triggerToast("Create your FutureMe reflection first.");
+    return;
+  }
+
+  elements.planLoading.style.display = 'block';
+  elements.planContainer.style.display = 'none';
+  elements.generatePlanBtn.disabled = true;
+
+  try {
+    const response = await fetch(`${API_BASE}/api/daily-plan`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ userProfile: state.userProfile })
+    });
+
+    const result = await response.json();
+    elements.planLoading.style.display = 'none';
+
+    if (result.success && result.plan) {
+      state.dailyPlan = result.plan;
+      renderDailyPlan(result.plan);
+      elements.planContainer.style.display = 'block';
+      elements.planContainer.scrollIntoView({ behavior: 'smooth' });
+      triggerToast("Daily plan generated! Check off tasks as you complete them.");
+    } else {
+      triggerToast(result.error || "Failed to generate daily plan. Try again.");
+    }
+  } catch (err) {
+    console.error('Error generating daily plan:', err);
+    elements.planLoading.style.display = 'none';
+    triggerToast("Server response failed. Please try again.");
+  } finally {
+    elements.generatePlanBtn.disabled = false;
+  }
+}
+
+function renderDailyPlan(plan) {
+  elements.planFocus.innerText = `Today's Focus: "${plan.focus}"`;
+  elements.planQuote.innerText = `“${plan.motivationalQuote}”\n— Mantra: ${plan.mantra}`;
+
+  elements.planScheduleGrid.innerHTML = '';
+  plan.schedule.forEach((block, idx) => {
+    const blockEl = document.createElement('div');
+    blockEl.className = 'glass';
+    blockEl.style.display = 'grid';
+    blockEl.style.gridTemplateColumns = 'auto 1fr';
+    blockEl.style.gap = '15px';
+    blockEl.style.padding = '15px';
+    blockEl.style.alignItems = 'start';
+    blockEl.style.borderRadius = '16px';
+    blockEl.style.transition = 'all 0.3s ease';
+
+    // Badge styling based on Leverage priority
+    let badgeColor = 'rgba(79, 70, 229, 0.15)';
+    let badgeTextColor = '#a78bfa';
+    if (block.leverage.toLowerCase() === 'critical') {
+      badgeColor = 'rgba(239, 68, 68, 0.15)';
+      badgeTextColor = '#fca5a5';
+    } else if (block.leverage.toLowerCase() === 'high') {
+      badgeColor = 'rgba(245, 158, 11, 0.15)';
+      badgeTextColor = '#fde047';
+    }
+
+    blockEl.innerHTML = `
+      <input type="checkbox" onchange="togglePlanTask(this, '${state.userProfile.name}')" style="width: 22px; height: 22px; margin-top: 3px; cursor: pointer; accent-color: #06b6d4;">
+      <div>
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 5px;">
+          <strong style="color: #06b6d4; font-size: 0.95rem;">${block.time}</strong>
+          <span class="badge" style="font-size: 0.75rem; padding: 3px 8px; margin: 0; background: ${badgeColor}; color: ${badgeTextColor}; border: none;">${block.leverage} Leverage</span>
+        </div>
+        <p class="activity-text" style="margin-top: 8px; color: #fff; font-size: 0.95rem; line-height: 1.5;">${block.activity}</p>
+        <small style="display: block; margin-top: 6px; color: #9ca3af; font-style: italic;">Motivation: ${block.motivation}</small>
+      </div>
+    `;
+    elements.planScheduleGrid.appendChild(blockEl);
+  });
+}
+
+function togglePlanTask(checkbox, userName) {
+  const container = checkbox.closest('.glass');
+  const activityText = container.querySelector('.activity-text');
+  
+  if (checkbox.checked) {
+    container.style.opacity = '0.6';
+    container.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+    container.style.background = 'rgba(16, 185, 129, 0.03)';
+    activityText.style.textDecoration = 'line-through';
+    
+    // Motivational messages from FutureSelf
+    const messages = [
+      `Future ${userName} is incredibly proud of your discipline!`,
+      "Action builds confidence. Outstanding work!",
+      "You checked off a block. Keep this momentum!",
+      "Consistency beats talent. You are winning today!",
+      "Boom! Another brick added to the foundation.",
+      "No excuses. You decided to win, and you are doing it."
+    ];
+    const randMsg = messages[Math.floor(Math.random() * messages.length)];
+    triggerToast(randMsg);
+  } else {
+    container.style.opacity = '1';
+    container.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+    container.style.background = 'rgba(255, 255, 255, 0.06)';
+    activityText.style.textDecoration = 'none';
+  }
+}
+
+function copyDailyPlan() {
+  if (!state.dailyPlan) return;
+  const plan = state.dailyPlan;
+  
+  let text = `📅 MY DAILY ACTION PLAN (Generated by FutureMe)\n`;
+  text += `--------------------------------------------------\n`;
+  text += `Today's Focus: ${plan.focus}\n\n`;
+  
+  plan.schedule.forEach(block => {
+    text += `[ ] ${block.time} - ${block.activity}\n`;
+    text += `    (Priority: ${block.leverage} | Motivation: ${block.motivation})\n\n`;
+  });
+  
+  text += `Mantra: "${plan.mantra}"\n`;
+  text += `Motto: "${plan.motivationalQuote}"\n`;
+  text += `--------------------------------------------------\n`;
+
+  navigator.clipboard.writeText(text)
+    .then(() => {
+      triggerToast("Daily plan copied to clipboard!");
+    })
+    .catch(err => {
+      console.error('Failed to copy daily plan:', err);
+      triggerToast("Failed to copy daily plan.");
     });
 }
