@@ -19,7 +19,32 @@ function reportAppUpdates(instance) {
 }
 
 // Enable CORS and JSON parsing
-app.use(cors());
+// Explicitly allow the Vercel frontend and local dev origins
+const allowedOrigins = [
+  'https://build-new-u4yq.vercel.app',
+  'http://localhost:5000',
+  'http://localhost:3000',
+  'http://127.0.0.1:5000',
+  'http://127.0.0.1:3000'
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (e.g. curl, Postman, same-origin server calls)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    }
+    return callback(new Error(`CORS policy: origin ${origin} is not allowed.`), false);
+  },
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
+
+// Handle preflight OPTIONS requests explicitly
+app.options('*', cors());
+
 app.use(express.json());
 
 // Serve static files from the frontend folder

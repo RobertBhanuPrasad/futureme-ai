@@ -2,10 +2,15 @@
 // FutureMe Frontend Logic
 // ==========================================================================
 
-// Config: Auto-detect API location (supports file:// and localhost)
-const API_BASE = (window.location.origin.startsWith('file://') || window.location.port !== '5000')
-  ? 'http://localhost:5000'
-  : '';
+// Config: Auto-detect API location
+// - On Vercel (or any https/http host that is NOT localhost), use relative path so
+//   the browser calls the same Vercel deployment's /api/* routes.
+// - When running directly from a file:// or on localhost (dev), point to the local backend.
+const isLocalDev = window.location.protocol === 'file:' ||
+  window.location.hostname === 'localhost' ||
+  window.location.hostname === '127.0.0.1';
+
+const API_BASE = isLocalDev ? 'http://localhost:5000' : '';
 
 // App State
 const state = {
