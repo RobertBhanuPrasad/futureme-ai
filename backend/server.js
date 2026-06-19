@@ -510,20 +510,26 @@ Do not include any Markdown wrappers or additional text, just return the JSON bl
   }
 });
 
-// Fallback for SPA routing (serve index.html for undefined routes)
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/index.html'));
-});
+// NOTE: SPA fallback (app.get('*')) is intentionally omitted here.
+// On Vercel, static file routing (frontend/*) is handled by vercel.json routes.
+// Adding a wildcard Express route here would intercept ALL requests including /api/*.
 
-// Start the server
-app.listen(PORT, () => {
-  console.log(`==================================================`);
-  console.log(`FutureMe server is running on http://localhost:${PORT}`);
-  if (!genAI) {
-    console.log(`WARNING: GEMINI_API_KEY is not set or placeholder.`);
-    console.log(`Please configure it in backend/.env to use AI features.`);
-  } else {
-    console.log(`Gemini AI service successfully initialized!`);
-  }
-  console.log(`==================================================`);
-});
+// Start the server only in local development.
+// On Vercel (serverless), app.listen() is NOT called — Vercel invokes the exported app directly.
+if (process.env.VERCEL !== '1') {
+  app.listen(PORT, () => {
+    console.log(`==================================================`);
+    console.log(`FutureMe server is running on http://localhost:${PORT}`);
+    if (!genAI) {
+      console.log(`WARNING: GEMINI_API_KEY is not set or placeholder.`);
+      console.log(`Please configure it in backend/.env to use AI features.`);
+    } else {
+      console.log(`Gemini AI service successfully initialized!`);
+    }
+    console.log(`==================================================`);
+  });
+}
+
+// REQUIRED for Vercel @vercel/node: export the Express app as the default export.
+// Without this, Vercel has no handler to invoke and returns NOT_FOUND.
+export default app;
