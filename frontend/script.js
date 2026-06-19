@@ -10,7 +10,7 @@ const isLocalDev = window.location.protocol === 'file:' ||
   window.location.hostname === 'localhost' ||
   window.location.hostname === '127.0.0.1';
 
-const API_BASE = isLocalDev ? 'http://localhost:5000' : '';
+const API_BASE = isLocalDev ? 'http://localhost:5000' : 'https://futureme-ai-zmgz.onrender.com';
 
 // App State
 const state = {
